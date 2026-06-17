@@ -53,6 +53,26 @@ export interface InstallationPhoto {
   uploadedAt: string;
 }
 
+export interface InstallationAppointment {
+  id: string;
+  orderId: string;
+  appointmentDate: string;
+  installer: string;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FollowUpRecord {
+  id: string;
+  customerId: string;
+  contactDate: string;
+  content: string;
+  result: string;
+  nextFollowUpDate?: string;
+  createdAt: string;
+}
+
 export interface Order {
   id: string;
   customerId: string;
@@ -64,6 +84,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  paymentDueDate?: string;
   remark?: string;
 }
 

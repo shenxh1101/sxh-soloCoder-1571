@@ -22,6 +22,11 @@ import {
   Coins,
   MoreHorizontal,
   ZoomIn,
+  CalendarDays,
+  UserCheck,
+  FileSpreadsheet,
+  Clock,
+  HardHat,
 } from "lucide-react";
 import { useStore } from "@/store";
 import {
@@ -55,6 +60,7 @@ export default function OrderDetail() {
   const windowItems = useStore((s) => s.windowItems);
   const photos = useStore((s) => s.photos);
   const payments = useStore((s) => s.payments);
+  const appointments = useStore((s) => s.appointments);
 
   const order = useMemo(
     () => orders.find((o) => o.id === id),
@@ -76,6 +82,10 @@ export default function OrderDetail() {
     () => payments.filter((p) => p.orderId === id),
     [payments, id]
   );
+  const orderAppointment = useMemo(
+    () => appointments.find((a) => a.orderId === id),
+    [appointments, id]
+  );
   const { totalPaid, totalUnpaid } = useMemo(() => {
     const paid = orderPayments.reduce((s, p) => s + p.amount, 0);
     return {
@@ -91,15 +101,24 @@ export default function OrderDetail() {
   const removeInstallationPhoto = useStore((s) => s.removeInstallationPhoto);
   const addPayment = useStore((s) => s.addPayment);
   const removePayment = useStore((s) => s.removePayment);
+  const setAppointment = useStore((s) => s.setAppointment);
+  const removeAppointment = useStore((s) => s.removeAppointment);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     paymentType: "deposit" as PaymentType,
     paymentDate: new Date().toISOString().split("T")[0],
+    remark: "",
+  });
+
+  const [appointmentForm, setAppointmentForm] = useState({
+    appointmentDate: "",
+    installer: "",
     remark: "",
   });
 
@@ -110,11 +129,46 @@ export default function OrderDetail() {
       if (e.key === "Escape") {
         setPreviewPhoto(null);
         setShowPaymentModal(false);
+        setShowAppointmentModal(false);
       }
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
+
+  const handleOpenAppointmentModal = () => {
+    if (orderAppointment) {
+      setAppointmentForm({
+        appointmentDate: orderAppointment.appointmentDate,
+        installer: orderAppointment.installer,
+        remark: orderAppointment.remark || "",
+      });
+    } else {
+      setAppointmentForm({
+        appointmentDate: "",
+        installer: "",
+        remark: "",
+      });
+    }
+    setShowAppointmentModal(true);
+  };
+
+  const handleSetAppointment = () => {
+    if (!appointmentForm.appointmentDate) {
+      alert("请选择预约安装日期");
+      return;
+    }
+    if (!appointmentForm.installer.trim()) {
+      alert("请输入安装师傅姓名");
+      return;
+    }
+    setAppointment(order.id, {
+      appointmentDate: appointmentForm.appointmentDate,
+      installer: appointmentForm.installer.trim(),
+      remark: appointmentForm.remark.trim() || undefined,
+    });
+    setShowAppointmentModal(false);
+  };
 
   if (!order) {
     return (
@@ -250,6 +304,13 @@ export default function OrderDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            to={`/orders/${order.id}/quote`}
+            target="_blank"
+            className="btn-secondary flex items-center gap-2"
+          >
+            <FileSpreadsheet className="w-4 h-4" /> 报价单
+          </Link>
           <button
             onClick={() => setIsEditing(true)}
             className="btn-secondary flex items-center gap-2"
@@ -420,6 +481,89 @@ export default function OrderDetail() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="section-title mb-0">
+            <CalendarDays className="w-5 h-5 text-copper-500" /> 安装预约
+          </h3>
+          <div className="flex items-center gap-2">
+            {orderAppointment && (
+              <button
+                onClick={() => {
+                  if (confirm("确定取消这个安装预约吗？")) {
+                    removeAppointment(orderAppointment.id);
+                  }
+                }}
+                className="btn-secondary flex items-center gap-2 !py-2 !px-3 !text-sm !text-red-500 hover:!bg-red-50"
+              >
+                <X className="w-4 h-4" /> 取消预约
+              </button>
+            )}
+            <button
+              onClick={handleOpenAppointmentModal}
+              className="btn-primary flex items-center gap-2 !py-2 !px-3 !text-sm"
+            >
+              <Clock className="w-4 h-4" /> {orderAppointment ? "修改预约" : "预约安装"}
+            </button>
+          </div>
+        </div>
+
+        {!orderAppointment ? (
+          <div className="border-2 border-dashed border-walnut-200 rounded-xl py-12 text-center">
+            <div className="text-walnut-300 text-5xl mb-3">📅</div>
+            <p className="text-walnut-500 mb-4">暂无安装预约</p>
+            <button
+              onClick={handleOpenAppointmentModal}
+              className="btn-secondary inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> 立即预约安装
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-copper-gradient/15 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-copper-600" />
+                </div>
+                <div>
+                  <div className="text-xs text-walnut-400">预约日期</div>
+                  <div className="font-semibold text-walnut-800">
+                    {formatDate(orderAppointment.appointmentDate)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-copper-gradient/15 flex items-center justify-center">
+                  <HardHat className="w-5 h-5 text-copper-600" />
+                </div>
+                <div>
+                  <div className="text-xs text-walnut-400">安装师傅</div>
+                  <div className="font-semibold text-walnut-800">
+                    {orderAppointment.installer}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-copper-gradient/15 flex items-center justify-center shrink-0 mt-0.5">
+                  <FileText className="w-5 h-5 text-copper-600" />
+                </div>
+                <div>
+                  <div className="text-xs text-walnut-400">上门备注</div>
+                  <div className="font-medium text-walnut-700 text-sm leading-relaxed">
+                    {orderAppointment.remark || "暂无备注"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card p-6">
@@ -753,6 +897,86 @@ export default function OrderDetail() {
                   <Save className="w-4 h-4" /> 确认收款
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAppointmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 mx-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-serif text-xl font-bold text-walnut-800">
+                {orderAppointment ? "修改安装预约" : "预约安装"}
+              </h3>
+              <button
+                onClick={() => setShowAppointmentModal(false)}
+                className="p-2 rounded-lg hover:bg-walnut-50 text-walnut-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-walnut-700 mb-2">
+                  预约安装日期
+                </label>
+                <input
+                  type="date"
+                  value={appointmentForm.appointmentDate}
+                  onChange={(e) =>
+                    setAppointmentForm({ ...appointmentForm, appointmentDate: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-xl border border-walnut-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-walnut-700 mb-2">
+                  安装师傅
+                </label>
+                <input
+                  type="text"
+                  placeholder="请输入安装师傅姓名"
+                  value={appointmentForm.installer}
+                  onChange={(e) =>
+                    setAppointmentForm({ ...appointmentForm, installer: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-xl border border-walnut-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-walnut-700 mb-2">
+                  上门备注 (选填)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="如：需携带工具、客户联系方式、注意事项等"
+                  value={appointmentForm.remark}
+                  onChange={(e) =>
+                    setAppointmentForm({ ...appointmentForm, remark: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-xl border border-walnut-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowAppointmentModal(false)}
+                className="btn-secondary !py-2 !px-4"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSetAppointment}
+                className="btn-primary flex items-center gap-2 !py-2 !px-4"
+              >
+                <Save className="w-4 h-4" /> 确认预约
+              </button>
             </div>
           </div>
         </div>

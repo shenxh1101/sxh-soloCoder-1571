@@ -1,5 +1,6 @@
 import ReactECharts from "echarts-for-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ClipboardList,
   DollarSign,
@@ -10,6 +11,14 @@ import {
   Calendar,
   Download,
   FileSpreadsheet,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  X,
+  Wallet,
+  User,
+  Phone,
+  MapPin,
 } from "lucide-react";
 import {
   useStatistics,
@@ -19,7 +28,8 @@ import {
 } from "@/hooks/useStatistics";
 import { useStore } from "@/store";
 import { STATUS_LABELS, STATUS_FLOW, PROFILE_COLORS } from "@/store/types";
-import { formatCurrency, exportToCsv } from "@/utils";
+import StatusBadge from "@/components/order/StatusBadge";
+import { formatCurrency, exportToCsv, formatDate } from "@/utils";
 
 export default function Statistics() {
   const stats = useStatistics();
@@ -30,6 +40,7 @@ export default function Statistics() {
   const customers = useStore((s) => s.customers);
   const windowItems = useStore((s) => s.windowItems);
   const payments = useStore((s) => s.payments);
+  const [showPaymentListModal, setShowPaymentListModal] = useState<"paid" | "unpaid" | "overdue" | null>(null);
 
   const today = new Date();
   const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -147,6 +158,69 @@ export default function Statistics() {
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
   }, [orders, customers]);
+
+  const paymentStats = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    let paidAmount = 0;
+    let unpaidAmount = 0;
+    let overdueAmount = 0;
+    const paidOrders: any[] = [];
+    const unpaidOrders: any[] = [];
+    const overdueOrders: any[] = [];
+
+    orders.forEach((order) => {
+      const totalPaid = getTotalPaidByOrderId(order.id);
+      const totalUnpaid = order.totalAmount - totalPaid;
+      const customer = getCustomerById(order.customerId);
+
+      if (totalUnpaid <= 0) {
+        paidAmount += order.totalAmount;
+        paidOrders.push({ ...order, customer, totalPaid, totalUnpaid });
+      } else {
+        unpaidAmount += totalUnpaid;
+        if (order.paymentDueDate) {
+          const dueDate = new Date(order.paymentDueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          if (dueDate < now) {
+            overdueAmount += totalUnpaid;
+            overdueOrders.push({ ...order, customer, totalPaid, totalUnpaid });
+          } else {
+            unpaidOrders.push({ ...order, customer, totalPaid, totalUnpaid });
+          }
+        } else {
+          unpaidOrders.push({ ...order, customer, totalPaid, totalUnpaid });
+        }
+      }
+    });
+
+    return {
+      paid: {
+        amount: paidAmount,
+        count: paidOrders.length,
+        orders: paidOrders.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        ),
+      },
+      unpaid: {
+        amount: unpaidAmount,
+        count: unpaidOrders.length,
+        orders: unpaidOrders.sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        ),
+      },
+      overdue: {
+        amount: overdueAmount,
+        count: overdueOrders.length,
+        orders: overdueOrders.sort((a, b) => {
+          const aDue = new Date(a.paymentDueDate!).getTime();
+          const bDue = new Date(b.paymentDueDate!).getTime();
+          return aDue - bDue;
+        }),
+      },
+    };
+  }, [orders, payments, customers]);
 
   const revenueTrendOption = {
     tooltip: {
@@ -516,10 +590,236 @@ export default function Statistics() {
         </div>
       </div>
 
+      <div className="card p-6 overflow-hidden relative">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-status-completed via-copper-500 to-red-500" />
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="section-title">
+            <Wallet className="w-5 h-5 text-copper-500" /> 收款看板
+          </h3>
+          <div className="text-sm text-walnut-500">
+            统计时间：{formatDate(today.toISOString())}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div
+            onClick={() => setShowPaymentListModal("paid")}
+            className="p-6 rounded-xl bg-gradient-to-br from-status-completed/5 to-status-completed/10 border border-status-completed/20 cursor-pointer hover:shadow-md hover:border-status-completed/40 transition-all group"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-status-completed/15 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-status-completed" />
+              </div>
+              <span className="text-xs font-medium text-status-completed bg-status-completed/10 px-2.5 py-1 rounded-full">
+                {paymentStats.paid.count} 单
+              </span>
+            </div>
+            <div className="text-3xl font-serif font-bold text-status-completed mb-1">
+              {formatCurrency(paymentStats.paid.amount)}
+            </div>
+            <div className="text-sm text-walnut-500 flex items-center gap-1">
+              本月已收款
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </div>
+
+          <div
+            onClick={() => setShowPaymentListModal("unpaid")}
+            className="p-6 rounded-xl bg-gradient-to-br from-copper-500/5 to-copper-500/10 border border-copper-500/20 cursor-pointer hover:shadow-md hover:border-copper-500/40 transition-all group"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-copper-500/15 flex items-center justify-center">
+                <Clock className="w-6 h-6 text-copper-600" />
+              </div>
+              <span className="text-xs font-medium text-copper-600 bg-copper-500/10 px-2.5 py-1 rounded-full">
+                {paymentStats.unpaid.count} 单
+              </span>
+            </div>
+            <div className="text-3xl font-serif font-bold text-copper-600 mb-1">
+              {formatCurrency(paymentStats.unpaid.amount)}
+            </div>
+            <div className="text-sm text-walnut-500 flex items-center gap-1">
+              待收款（未逾期）
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </div>
+
+          <div
+            onClick={() => setShowPaymentListModal("overdue")}
+            className={`p-6 rounded-xl bg-gradient-to-br from-red-500/5 to-red-500/10 border border-red-500/20 cursor-pointer hover:shadow-md hover:border-red-500/40 transition-all group ${
+              paymentStats.overdue.count > 0 ? "animate-pulse" : ""
+            }`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-red-500/15 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
+              </div>
+              <span className="text-xs font-medium text-red-500 bg-red-500/10 px-2.5 py-1 rounded-full">
+                {paymentStats.overdue.count} 单
+              </span>
+            </div>
+            <div className="text-3xl font-serif font-bold text-red-500 mb-1">
+              {formatCurrency(paymentStats.overdue.amount)}
+            </div>
+            <div className="text-sm text-walnut-500 flex items-center gap-1">
+              逾期未收款
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="card p-6">
         <h3 className="section-title mb-4">各状态订单数量对比</h3>
         <ReactECharts option={statusCompareOption} style={{ height: 260 }} />
       </div>
+
+      {showPaymentListModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 mx-4 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="font-serif text-xl font-bold text-walnut-800">
+                  {showPaymentListModal === "paid" && "本月已收款订单"}
+                  {showPaymentListModal === "unpaid" && "待收款订单（未逾期）"}
+                  {showPaymentListModal === "overdue" && "逾期未收款订单"}
+                </h3>
+                <p className="text-sm text-walnut-500 mt-1">
+                  共{" "}
+                  {showPaymentListModal === "paid" && paymentStats.paid.count}
+                  {showPaymentListModal === "unpaid" && paymentStats.unpaid.count}
+                  {showPaymentListModal === "overdue" && paymentStats.overdue.count}{" "}
+                  单，合计{" "}
+                  {showPaymentListModal === "paid" &&
+                    formatCurrency(paymentStats.paid.amount)}
+                  {showPaymentListModal === "unpaid" &&
+                    formatCurrency(paymentStats.unpaid.amount)}
+                  {showPaymentListModal === "overdue" &&
+                    formatCurrency(paymentStats.overdue.amount)}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPaymentListModal(null)}
+                className="p-2 rounded-lg hover:bg-walnut-50 text-walnut-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto -mx-2 px-2">
+              {(() => {
+                const orderList =
+                  showPaymentListModal === "paid"
+                    ? paymentStats.paid.orders
+                    : showPaymentListModal === "unpaid"
+                    ? paymentStats.unpaid.orders
+                    : paymentStats.overdue.orders;
+
+                if (orderList.length === 0) {
+                  return (
+                    <div className="py-12 text-center">
+                      <div className="text-walnut-300 text-4xl mb-3">✅</div>
+                      <p className="text-walnut-500">暂无相关订单</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {orderList.map((order: any) => (
+                      <Link
+                        key={order.id}
+                        to={`/orders/${order.id}`}
+                        onClick={() => setShowPaymentListModal(null)}
+                        className="block p-4 rounded-xl bg-cream-50 border border-walnut-100 hover:border-copper-300 hover:shadow-md transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm text-walnut-500">
+                              {order.orderNo}
+                            </span>
+                            <StatusBadge status={order.status} size="sm" />
+                            {showPaymentListModal === "overdue" && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium">
+                                <AlertTriangle className="w-3 h-3" />
+                                逾期 {Math.ceil(
+                                  (today.getTime() -
+                                    new Date(order.paymentDueDate!).getTime()) /
+                                    (1000 * 60 * 60 * 24)
+                                )}{" "}
+                                天
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm text-walnut-500">订单金额</div>
+                            <div className="font-semibold text-copper-600">
+                              {formatCurrency(order.totalAmount)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div className="flex items-center gap-2 text-walnut-500">
+                            <User className="w-3.5 h-3.5 text-copper-500" />
+                            <span className="truncate">{order.customer?.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-walnut-500">
+                            <Phone className="w-3.5 h-3.5 text-copper-500" />
+                            <span>{order.customer?.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-walnut-500">
+                            <MapPin className="w-3.5 h-3.5 text-copper-500" />
+                            <span className="truncate max-w-[180px]">
+                              {order.customer?.address}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-walnut-500">
+                            <Calendar className="w-3.5 h-3.5 text-copper-500" />
+                            <span>
+                              {showPaymentListModal === "overdue"
+                                ? `到期日：${formatDate(order.paymentDueDate!)}`
+                                : `下单：${formatDate(order.createdAt)}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-walnut-100 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="text-sm">
+                              <span className="text-walnut-500">已收：</span>
+                              <span className="font-semibold text-status-completed">
+                                {formatCurrency(order.totalPaid)}
+                              </span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-walnut-500">未收：</span>
+                              <span
+                                className={`font-semibold ${
+                                  order.totalUnpaid > 0
+                                    ? showPaymentListModal === "overdue"
+                                      ? "text-red-500"
+                                      : "text-copper-600"
+                                    : "text-status-completed"
+                                }`}
+                              >
+                                {formatCurrency(order.totalUnpaid)}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-xs text-copper-600 hover:text-copper-700 font-medium">
+                            查看订单详情 →
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

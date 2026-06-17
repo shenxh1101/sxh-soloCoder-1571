@@ -8,6 +8,8 @@ import type {
   OrderStatus,
   PaymentRecord,
   PaymentType,
+  InstallationAppointment,
+  FollowUpRecord,
 } from "./types";
 import {
   mockCustomers,
@@ -15,6 +17,8 @@ import {
   mockWindowItems,
   mockPhotos,
   mockPayments,
+  mockAppointments,
+  mockFollowUps,
 } from "./initialData";
 import { generateId, generateOrderNo, calcOrderSummary } from "@/utils";
 
@@ -43,6 +47,8 @@ interface AppState {
   windowItems: WindowItem[];
   photos: InstallationPhoto[];
   payments: PaymentRecord[];
+  appointments: InstallationAppointment[];
+  followUps: FollowUpRecord[];
 
   getCustomerById: (id: string) => Customer | undefined;
   getOrderById: (id: string) => Order | undefined;
@@ -52,12 +58,16 @@ interface AppState {
   getOrdersByCustomerId: (customerId: string) => Order[];
   findCustomerByPhone: (phone: string) => Customer | undefined;
   getTotalPaidByOrderId: (orderId: string) => number;
+  getAppointmentByOrderId: (orderId: string) => InstallationAppointment | undefined;
+  getAppointmentsByDateRange: (startDate: string, endDate: string) => InstallationAppointment[];
+  getFollowUpsByCustomerId: (customerId: string) => FollowUpRecord[];
 
   createOrder: (input: OrderInput) => Order;
   updateOrder: (id: string, input: Partial<OrderInput>) => void;
   deleteOrder: (id: string) => void;
   advanceOrderStatus: (id: string) => void;
   setOrderStatus: (id: string, status: OrderStatus) => void;
+  setPaymentDueDate: (id: string, dueDate: string) => void;
 
   addInstallationPhoto: (orderId: string, dataUrl: string) => void;
   removeInstallationPhoto: (photoId: string) => void;
@@ -70,6 +80,21 @@ interface AppState {
   }) => void;
   removePayment: (paymentId: string) => void;
 
+  setAppointment: (orderId: string, input: {
+    appointmentDate: string;
+    installer: string;
+    remark?: string;
+  }) => void;
+  removeAppointment: (appointmentId: string) => void;
+
+  addFollowUp: (customerId: string, input: {
+    contactDate: string;
+    content: string;
+    result: string;
+    nextFollowUpDate?: string;
+  }) => void;
+  removeFollowUp: (followUpId: string) => void;
+
   resetAllData: () => void;
 }
 
@@ -81,6 +106,8 @@ export const useStore = create<AppState>()(
       windowItems: mockWindowItems,
       photos: mockPhotos,
       payments: mockPayments,
+      appointments: mockAppointments,
+      followUps: mockFollowUps,
 
       getCustomerById: (id) => get().customers.find((c) => c.id === id),
       getOrderById: (id) => get().orders.find((o) => o.id === id),
@@ -98,6 +125,16 @@ export const useStore = create<AppState>()(
         get()
           .payments.filter((p) => p.orderId === orderId)
           .reduce((sum, p) => sum + p.amount, 0),
+      getAppointmentByOrderId: (orderId) =>
+        get().appointments.find((a) => a.orderId === orderId),
+      getAppointmentsByDateRange: (startDate, endDate) =>
+        get().appointments.filter(
+          (a) => a.appointmentDate >= startDate && a.appointmentDate <= endDate
+        ),
+      getFollowUpsByCustomerId: (customerId) =>
+        get()
+          .followUps.filter((f) => f.customerId === customerId)
+          .sort((a, b) => new Date(b.contactDate).getTime() - new Date(a.contactDate).getTime()),
 
       createOrder: (input) => {
         const state = get();
@@ -227,6 +264,7 @@ export const useStore = create<AppState>()(
           windowItems: state.windowItems.filter((w) => w.orderId !== id),
           photos: state.photos.filter((p) => p.orderId !== id),
           payments: state.payments.filter((p) => p.orderId !== id),
+          appointments: state.appointments.filter((a) => a.orderId !== id),
         });
       },
 
@@ -313,6 +351,75 @@ export const useStore = create<AppState>()(
         set({ payments: state.payments.filter((p) => p.id !== paymentId) });
       },
 
+      setPaymentDueDate: (id, dueDate) => {
+        const state = get();
+        const now = new Date().toISOString();
+        set({
+          orders: state.orders.map((o) =>
+            o.id === id ? { ...o, paymentDueDate: dueDate, updatedAt: now } : o
+          ),
+        });
+      },
+
+      setAppointment: (orderId, input) => {
+        const state = get();
+        const now = new Date().toISOString();
+        const existing = state.appointments.find((a) => a.orderId === orderId);
+
+        if (existing) {
+          set({
+            appointments: state.appointments.map((a) =>
+              a.id === existing.id
+                ? {
+                    ...a,
+                    appointmentDate: input.appointmentDate,
+                    installer: input.installer,
+                    remark: input.remark,
+                    updatedAt: now,
+                  }
+                : a
+            ),
+          });
+        } else {
+          const newAppointment: InstallationAppointment = {
+            id: generateId("apt-"),
+            orderId,
+            appointmentDate: input.appointmentDate,
+            installer: input.installer,
+            remark: input.remark,
+            createdAt: now,
+            updatedAt: now,
+          };
+          set({ appointments: [...state.appointments, newAppointment] });
+        }
+      },
+
+      removeAppointment: (appointmentId) => {
+        const state = get();
+        set({
+          appointments: state.appointments.filter((a) => a.id !== appointmentId),
+        });
+      },
+
+      addFollowUp: (customerId, input) => {
+        const state = get();
+        const newFollowUp: FollowUpRecord = {
+          id: generateId("fu-"),
+          customerId,
+          contactDate: input.contactDate,
+          content: input.content,
+          result: input.result,
+          nextFollowUpDate: input.nextFollowUpDate,
+          createdAt: new Date().toISOString(),
+        };
+        set({ followUps: [...state.followUps, newFollowUp] });
+      },
+
+      removeFollowUp: (followUpId) => {
+        const state = get();
+        set({ followUps: state.followUps.filter((f) => f.id !== followUpId) });
+      },
+
       resetAllData: () => {
         set({
           customers: mockCustomers,
@@ -320,6 +427,8 @@ export const useStore = create<AppState>()(
           windowItems: mockWindowItems,
           photos: mockPhotos,
           payments: mockPayments,
+          appointments: mockAppointments,
+          followUps: mockFollowUps,
         });
       },
     }),

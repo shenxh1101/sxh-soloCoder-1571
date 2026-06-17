@@ -1,4 +1,4 @@
-import type { Customer, Order, WindowItem, InstallationPhoto, PaymentRecord } from "./types";
+import type { Customer, Order, WindowItem, InstallationPhoto, PaymentRecord, InstallationAppointment, FollowUpRecord } from "./types";
 
 const now = new Date();
 const daysAgo = (d: number) => {
@@ -99,6 +99,7 @@ export const mockOrders: Order[] = [
     totalGlassArea: 51.8,
     createdAt: daysAgo(38),
     updatedAt: daysAgo(3),
+    paymentDueDate: daysAgo(-7).split("T")[0],
   },
   {
     id: "ord-005",
@@ -110,6 +111,7 @@ export const mockOrders: Order[] = [
     totalGlassArea: 30.6,
     createdAt: daysAgo(28),
     updatedAt: daysAgo(5),
+    paymentDueDate: daysAgo(10).split("T")[0],
   },
   {
     id: "ord-006",
@@ -121,6 +123,7 @@ export const mockOrders: Order[] = [
     totalGlassArea: 20.1,
     createdAt: daysAgo(17),
     updatedAt: daysAgo(10),
+    paymentDueDate: daysAgo(-15).split("T")[0],
   },
   {
     id: "ord-007",
@@ -132,6 +135,7 @@ export const mockOrders: Order[] = [
     totalGlassArea: 44.2,
     createdAt: daysAgo(13),
     updatedAt: daysAgo(8),
+    paymentDueDate: daysAgo(5).split("T")[0],
   },
   {
     id: "ord-008",
@@ -143,6 +147,7 @@ export const mockOrders: Order[] = [
     totalGlassArea: 17.8,
     createdAt: daysAgo(8),
     updatedAt: daysAgo(8),
+    paymentDueDate: daysAgo(-20).split("T")[0],
   },
   {
     id: "ord-009",
@@ -154,6 +159,7 @@ export const mockOrders: Order[] = [
     totalGlassArea: 36.1,
     createdAt: daysAgo(6),
     updatedAt: daysAgo(6),
+    paymentDueDate: daysAgo(-25).split("T")[0],
   },
   {
     id: "ord-010",
@@ -166,6 +172,7 @@ export const mockOrders: Order[] = [
     createdAt: daysAgo(3),
     updatedAt: daysAgo(3),
     remark: "客户要求本月底前安装完成",
+    paymentDueDate: daysAgo(-30).split("T")[0],
   },
 ];
 
@@ -227,4 +234,79 @@ export const mockPayments: PaymentRecord[] = [
   { id: "pay-011", orderId: "ord-007", amount: 15000, paymentType: "deposit", paymentDate: daysAgo(13).split("T")[0], remark: "老客户，优惠500", createdAt: daysAgo(13) },
   { id: "pay-012", orderId: "ord-008", amount: 5000, paymentType: "deposit", paymentDate: daysAgo(8).split("T")[0], remark: "", createdAt: daysAgo(8) },
   { id: "pay-013", orderId: "ord-009", amount: 10000, paymentType: "deposit", paymentDate: daysAgo(6).split("T")[0], remark: "王总介绍的客户", createdAt: daysAgo(6) },
+];
+
+export const mockAppointments: InstallationAppointment[] = [
+  {
+    id: "apt-001",
+    orderId: "ord-004",
+    appointmentDate: daysAgo(-2).split("T")[0],
+    installer: "李师傅",
+    remark: "客户要求上午9点到达，需要自带鞋套",
+    createdAt: daysAgo(5),
+    updatedAt: daysAgo(5),
+  },
+  {
+    id: "apt-002",
+    orderId: "ord-005",
+    appointmentDate: daysAgo(-5).split("T")[0],
+    installer: "张师傅",
+    remark: "小区停车方便，从西门进",
+    createdAt: daysAgo(3),
+    updatedAt: daysAgo(3),
+  },
+  {
+    id: "apt-003",
+    orderId: "ord-010",
+    appointmentDate: daysAgo(-1).split("T")[0],
+    installer: "王师傅",
+    remark: "客户要求月底前安装完成",
+    createdAt: daysAgo(1),
+    updatedAt: daysAgo(1),
+  },
+];
+
+export const mockFollowUps: FollowUpRecord[] = [
+  {
+    id: "fu-001",
+    customerId: "cust-001",
+    contactDate: daysAgo(10).split("T")[0],
+    content: "客户来电询问生产进度，担心能否按时安装",
+    result: "告知客户已完成生产，待发货，预计3天内到货",
+    nextFollowUpDate: daysAgo(-3).split("T")[0],
+    createdAt: daysAgo(10),
+  },
+  {
+    id: "fu-002",
+    customerId: "cust-001",
+    contactDate: daysAgo(3).split("T")[0],
+    content: "客户回访安装使用情况，询问保养方法",
+    result: "告知客户清洁注意事项，留下联系方式有问题随时联系",
+    createdAt: daysAgo(3),
+  },
+  {
+    id: "fu-003",
+    customerId: "cust-003",
+    contactDate: daysAgo(5).split("T")[0],
+    content: "客户来电咨询新款窗型，考虑阳台加装",
+    result: "已发送产品资料，约定下周上门测量",
+    nextFollowUpDate: daysAgo(-2).split("T")[0],
+    createdAt: daysAgo(5),
+  },
+  {
+    id: "fu-004",
+    customerId: "cust-002",
+    contactDate: daysAgo(8).split("T")[0],
+    content: "客户反映窗边有轻微渗水，需要处理",
+    result: "已安排师傅上门打胶处理，客户满意",
+    createdAt: daysAgo(8),
+  },
+  {
+    id: "fu-005",
+    customerId: "cust-004",
+    contactDate: daysAgo(2).split("T")[0],
+    content: "客户询问发货时间，比较着急",
+    result: "告知客户已发货，明天到达，预约后天安装",
+    createdAt: daysAgo(2),
+  },
 ];

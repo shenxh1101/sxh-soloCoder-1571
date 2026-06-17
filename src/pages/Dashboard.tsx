@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
+import { useMemo } from "react";
 import {
   ClipboardList,
   Hammer,
@@ -7,6 +8,11 @@ import {
   TrendingUp,
   Plus,
   Search,
+  CalendarDays,
+  HardHat,
+  MapPin,
+  Phone,
+  AlertTriangle,
 } from "lucide-react";
 import { useStatistics, useMonthlyStats } from "@/hooks/useStatistics";
 import { useStore } from "@/store";
@@ -45,8 +51,31 @@ export default function Dashboard() {
   const stats = useStatistics();
   const monthly = useMonthlyStats(6);
   const customers = useStore((s) => s.customers);
+  const orders = useStore((s) => s.orders);
+  const appointments = useStore((s) => s.appointments);
 
   const getCustomerById = (id: string) => customers.find((c) => c.id === id);
+
+  const upcomingInstallations = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const next7Days = new Date(today);
+    next7Days.setDate(next7Days.getDate() + 7);
+
+    return appointments
+      .filter((a) => {
+        const aptDate = new Date(a.appointmentDate);
+        aptDate.setHours(0, 0, 0, 0);
+        return aptDate >= today && aptDate <= next7Days;
+      })
+      .map((a) => {
+        const order = orders.find((o) => o.id === a.orderId);
+        const customer = order ? customers.find((c) => c.id === order.customerId) : null;
+        return { ...a, order, customer };
+      })
+      .filter((a) => a.order && a.customer)
+      .sort((a, b) => new Date(a.appointmentDate).getTime() - new Date(b.appointmentDate).getTime());
+  }, [appointments, orders, customers]);
 
   const pieOption = {
     tooltip: { trigger: "item", formatter: "{b}: {c}单 ({d}%)" },
@@ -246,6 +275,104 @@ export default function Dashboard() {
           <h3 className="section-title mb-4">营收走势</h3>
           <ReactECharts option={lineOption} style={{ height: 260 }} />
         </div>
+      </div>
+
+      <div className="card p-6 overflow-hidden relative">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-status-installing via-copper-500 to-status-installing" />
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="section-title">
+            <CalendarDays className="w-5 h-5 text-copper-500" /> 近期安装提醒
+            {upcomingInstallations.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-status-installing/10 text-status-installing text-xs font-medium">
+                {upcomingInstallations.length} 个待安装
+              </span>
+            )}
+          </h3>
+          <Link
+            to="/orders?status=installing"
+            className="text-sm text-copper-600 hover:text-copper-700 font-medium"
+          >
+            查看全部 →
+          </Link>
+        </div>
+
+        {upcomingInstallations.length === 0 ? (
+          <div className="py-8 text-center">
+            <div className="text-walnut-300 text-4xl mb-3">✅</div>
+            <p className="text-walnut-500">未来7天暂无安装安排</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingInstallations.map((apt) => {
+              const aptDate = new Date(apt.appointmentDate);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const diffDays = Math.ceil((aptDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+              const isToday = diffDays === 0;
+              const isTomorrow = diffDays === 1;
+
+              let dateLabel = formatDate(apt.appointmentDate);
+              let dateBadgeClass = "bg-walnut-100 text-walnut-600";
+              if (isToday) {
+                dateLabel = "今天";
+                dateBadgeClass = "bg-status-installing/15 text-status-installing";
+              } else if (isTomorrow) {
+                dateLabel = "明天";
+                dateBadgeClass = "bg-copper-500/15 text-copper-600";
+              }
+
+              return (
+                <Link
+                  key={apt.id}
+                  to={`/orders/${apt.orderId}`}
+                  className="block p-4 rounded-xl bg-cream-50 border border-walnut-100 hover:border-copper-300 hover:shadow-md transition-all group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${dateBadgeClass}`}>
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        {dateLabel}
+                      </span>
+                      {isToday && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-xs font-medium">
+                          <AlertTriangle className="w-3 h-3" />
+                          今日待装
+                        </span>
+                      )}
+                    </div>
+                    <StatusBadge status={apt.order!.status} size="sm" />
+                  </div>
+
+                  <div className="font-medium text-walnut-800 mb-2 group-hover:text-copper-600 transition-colors">
+                    {apt.customer!.name} · {apt.order!.orderNo}
+                  </div>
+
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex items-center gap-2 text-walnut-500">
+                      <HardHat className="w-3.5 h-3.5 text-copper-500" />
+                      <span>安装师傅：{apt.installer}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-walnut-500">
+                      <MapPin className="w-3.5 h-3.5 text-copper-500" />
+                      <span className="truncate">{apt.customer!.address}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-walnut-500">
+                      <Phone className="w-3.5 h-3.5 text-copper-500" />
+                      <span>{apt.customer!.phone}</span>
+                    </div>
+                  </div>
+
+                  {apt.remark && (
+                    <div className="mt-3 pt-3 border-t border-walnut-100">
+                      <div className="text-xs text-walnut-400 mb-1">上门备注</div>
+                      <div className="text-sm text-walnut-600 line-clamp-2">{apt.remark}</div>
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="card p-6">
