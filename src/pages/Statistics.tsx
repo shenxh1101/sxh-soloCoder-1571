@@ -160,47 +160,64 @@ export default function Statistics() {
   }, [orders, customers]);
 
   const paymentStats = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    const thisMonthStartDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
 
     let paidAmount = 0;
     let unpaidAmount = 0;
     let overdueAmount = 0;
-    const paidOrders: any[] = [];
+    const paidRecords: any[] = [];
     const unpaidOrders: any[] = [];
     const overdueOrders: any[] = [];
+
+    payments.forEach((payment) => {
+      const paymentDate = new Date(payment.paymentDate);
+      paymentDate.setHours(0, 0, 0, 0);
+      if (paymentDate >= thisMonthStartDate && paymentDate <= todayDate) {
+        paidAmount += payment.amount;
+        const order = orders.find((o) => o.id === payment.orderId);
+        const customer = order ? getCustomerById(order.customerId) : null;
+        paidRecords.push({
+          ...payment,
+          order,
+          customer,
+          totalPaid: order ? getTotalPaidByOrderId(order.id) : 0,
+          totalUnpaid: order ? order.totalAmount - getTotalPaidByOrderId(order.id) : 0,
+        });
+      }
+    });
 
     orders.forEach((order) => {
       const totalPaid = getTotalPaidByOrderId(order.id);
       const totalUnpaid = order.totalAmount - totalPaid;
-      const customer = getCustomerById(order.customerId);
+      if (totalUnpaid <= 0) return;
 
-      if (totalUnpaid <= 0) {
-        paidAmount += order.totalAmount;
-        paidOrders.push({ ...order, customer, totalPaid, totalUnpaid });
+      const customer = getCustomerById(order.customerId);
+      const orderWithPayment = { ...order, customer, totalPaid, totalUnpaid };
+
+      if (order.paymentDueDate) {
+        const dueDate = new Date(order.paymentDueDate);
+        dueDate.setHours(0, 0, 0, 0);
+        if (dueDate < todayDate) {
+          overdueAmount += totalUnpaid;
+          overdueOrders.push(orderWithPayment);
+        } else {
+          unpaidAmount += totalUnpaid;
+          unpaidOrders.push(orderWithPayment);
+        }
       } else {
         unpaidAmount += totalUnpaid;
-        if (order.paymentDueDate) {
-          const dueDate = new Date(order.paymentDueDate);
-          dueDate.setHours(0, 0, 0, 0);
-          if (dueDate < now) {
-            overdueAmount += totalUnpaid;
-            overdueOrders.push({ ...order, customer, totalPaid, totalUnpaid });
-          } else {
-            unpaidOrders.push({ ...order, customer, totalPaid, totalUnpaid });
-          }
-        } else {
-          unpaidOrders.push({ ...order, customer, totalPaid, totalUnpaid });
-        }
+        unpaidOrders.push(orderWithPayment);
       }
     });
 
     return {
       paid: {
         amount: paidAmount,
-        count: paidOrders.length,
-        orders: paidOrders.sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        count: paidRecords.length,
+        records: paidRecords.sort(
+          (a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()
         ),
       },
       unpaid: {
@@ -220,7 +237,7 @@ export default function Statistics() {
         }),
       },
     };
-  }, [orders, payments, customers]);
+  }, [orders, payments, customers, thisMonthStart, today]);
 
   const revenueTrendOption = {
     tooltip: {
@@ -680,7 +697,7 @@ export default function Statistics() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="font-serif text-xl font-bold text-walnut-800">
-                  {showPaymentListModal === "paid" && "本月已收款订单"}
+                  {showPaymentListModal === "paid" && "本月收款记录明细"}
                   {showPaymentListModal === "unpaid" && "待收款订单（未逾期）"}
                   {showPaymentListModal === "overdue" && "逾期未收款订单"}
                 </h3>
@@ -689,7 +706,7 @@ export default function Statistics() {
                   {showPaymentListModal === "paid" && paymentStats.paid.count}
                   {showPaymentListModal === "unpaid" && paymentStats.unpaid.count}
                   {showPaymentListModal === "overdue" && paymentStats.overdue.count}{" "}
-                  单，合计{" "}
+                  {showPaymentListModal === "paid" ? "笔收款" : "单"}，合计{" "}
                   {showPaymentListModal === "paid" &&
                     formatCurrency(paymentStats.paid.amount)}
                   {showPaymentListModal === "unpaid" &&
@@ -708,25 +725,120 @@ export default function Statistics() {
 
             <div className="flex-1 overflow-y-auto -mx-2 px-2">
               {(() => {
-                const orderList =
-                  showPaymentListModal === "paid"
-                    ? paymentStats.paid.orders
-                    : showPaymentListModal === "unpaid"
-                    ? paymentStats.unpaid.orders
-                    : paymentStats.overdue.orders;
+                const isPaidView = showPaymentListModal === "paid";
+                const itemList = isPaidView
+                  ? paymentStats.paid.records
+                  : showPaymentListModal === "unpaid"
+                  ? paymentStats.unpaid.orders
+                  : paymentStats.overdue.orders;
 
-                if (orderList.length === 0) {
+                if (itemList.length === 0) {
                   return (
                     <div className="py-12 text-center">
                       <div className="text-walnut-300 text-4xl mb-3">✅</div>
-                      <p className="text-walnut-500">暂无相关订单</p>
+                      <p className="text-walnut-500">
+                        {isPaidView ? "暂无收款记录" : "暂无相关订单"}
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (isPaidView) {
+                  return (
+                    <div className="space-y-3">
+                      {itemList.map((record: any) => (
+                        <Link
+                          key={record.id}
+                          to={`/orders/${record.orderId}`}
+                          onClick={() => setShowPaymentListModal(null)}
+                          className="block p-4 rounded-xl bg-cream-50 border border-walnut-100 hover:border-copper-300 hover:shadow-md transition-all"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm text-walnut-500">
+                                {record.order?.orderNo}
+                              </span>
+                              <StatusBadge status={record.order?.status} size="sm" />
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-completed/10 text-status-completed text-xs font-medium">
+                                {record.paymentType === "deposit"
+                                  ? "定金"
+                                  : record.paymentType === "progress"
+                                  ? "进度款"
+                                  : record.paymentType === "balance"
+                                  ? "尾款"
+                                  : "其他"}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm text-walnut-500">收款金额</div>
+                              <div className="font-semibold text-status-completed">
+                                +{formatCurrency(record.amount)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className="flex items-center gap-2 text-walnut-500">
+                              <User className="w-3.5 h-3.5 text-copper-500" />
+                              <span className="truncate">{record.customer?.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-walnut-500">
+                              <Phone className="w-3.5 h-3.5 text-copper-500" />
+                              <span>{record.customer?.phone}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-walnut-500">
+                              <Calendar className="w-3.5 h-3.5 text-copper-500" />
+                              <span>收款日：{formatDate(record.paymentDate)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-walnut-500">
+                              <CheckCircle className="w-3.5 h-3.5 text-copper-500" />
+                              <span>
+                                剩余：{formatCurrency(record.order?.totalAmount - record.totalPaid)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {record.remark && (
+                            <div className="mt-3 pt-3 border-t border-walnut-100">
+                              <div className="text-xs text-walnut-400 mb-1">备注</div>
+                              <div className="text-sm text-walnut-600">{record.remark}</div>
+                            </div>
+                          )}
+
+                          <div className="mt-3 pt-3 border-t border-walnut-100 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="text-sm">
+                                <span className="text-walnut-500">订单总额：</span>
+                                <span className="font-semibold text-walnut-700">
+                                  {formatCurrency(record.order?.totalAmount)}
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-walnut-500">累计已收：</span>
+                                <span className="font-semibold text-status-completed">
+                                  {formatCurrency(record.totalPaid)}
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-walnut-500">未收：</span>
+                                <span className="font-semibold text-copper-600">
+                                  {formatCurrency(record.totalUnpaid)}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-xs text-copper-600 hover:text-copper-700 font-medium">
+                              查看订单详情 →
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
                     </div>
                   );
                 }
 
                 return (
                   <div className="space-y-3">
-                    {orderList.map((order: any) => (
+                    {itemList.map((order: any) => (
                       <Link
                         key={order.id}
                         to={`/orders/${order.id}`}

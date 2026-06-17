@@ -73,6 +73,63 @@ export interface FollowUpRecord {
   createdAt: string;
 }
 
+export interface ContractConfirmation {
+  id: string;
+  orderId: string;
+  paymentTerms: string;
+  installationTerms: string;
+  warrantyMonths: number;
+  customerSignature?: string;
+  signedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InspectionResult = "pass" | "rework" | "pending";
+
+export const INSPECTION_RESULT_LABELS: Record<InspectionResult, string> = {
+  pass: "验收通过",
+  rework: "需要返工",
+  pending: "待验收",
+};
+
+export interface InspectionRecord {
+  id: string;
+  orderId: string;
+  inspectionDate: string;
+  result: InspectionResult;
+  customerFeedback: string;
+  needsRework: boolean;
+  reworkReason?: string;
+  reworkProgress?: string;
+  reworkCompletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AfterSalesStatus = "pending" | "processing" | "completed";
+
+export const AFTER_SALES_STATUS_LABELS: Record<AfterSalesStatus, string> = {
+  pending: "待处理",
+  processing: "处理中",
+  completed: "已完成",
+};
+
+export interface AfterSalesTicket {
+  id: string;
+  customerId: string;
+  orderId?: string;
+  issueType: string;
+  description: string;
+  appointmentDate?: string;
+  handler?: string;
+  status: AfterSalesStatus;
+  result?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Order {
   id: string;
   customerId: string;

@@ -1,4 +1,4 @@
-import type { Customer, Order, WindowItem, InstallationPhoto, PaymentRecord, InstallationAppointment, FollowUpRecord } from "./types";
+import type { Customer, Order, WindowItem, InstallationPhoto, PaymentRecord, InstallationAppointment, FollowUpRecord, ContractConfirmation, InspectionRecord, AfterSalesTicket } from "./types";
 
 const now = new Date();
 const daysAgo = (d: number) => {
@@ -308,5 +308,129 @@ export const mockFollowUps: FollowUpRecord[] = [
     content: "客户询问发货时间，比较着急",
     result: "告知客户已发货，明天到达，预约后天安装",
     createdAt: daysAgo(2),
+  },
+];
+
+export const mockContracts: ContractConfirmation[] = [
+  {
+    id: "contract-001",
+    orderId: "ord-004",
+    paymentTerms: "签订合同支付30%定金，生产完毕支付40%进度款，安装验收合格后付清30%尾款",
+    installationTerms: "预计15个工作日生产完成，上门安装预计2个工作日。安装前请客户清理安装现场，确保水电到位。",
+    warrantyMonths: 24,
+    customerSignature: "王建国",
+    signedAt: daysAgo(37),
+    createdAt: daysAgo(38),
+    updatedAt: daysAgo(37),
+  },
+  {
+    id: "contract-002",
+    orderId: "ord-005",
+    paymentTerms: "支付50%定金，安装验收合格后付清50%尾款",
+    installationTerms: "生产周期20个工作日，安装1天。客户家中有宠物，请安装师傅注意关好门窗。",
+    warrantyMonths: 12,
+    customerSignature: "陈美玲",
+    signedAt: daysAgo(27),
+    createdAt: daysAgo(28),
+    updatedAt: daysAgo(27),
+  },
+  {
+    id: "contract-003",
+    orderId: "ord-001",
+    paymentTerms: "一次性付清全款，享受95折优惠",
+    installationTerms: "生产周期10个工作日，安装半天。小区物业规定周末不能施工，请安排工作日安装。",
+    warrantyMonths: 24,
+    customerSignature: "张伟",
+    signedAt: daysAgo(77),
+    createdAt: daysAgo(78),
+    updatedAt: daysAgo(77),
+  },
+];
+
+export const mockInspections: InspectionRecord[] = [
+  {
+    id: "insp-001",
+    orderId: "ord-001",
+    inspectionDate: daysAgo(60).split("T")[0],
+    result: "pass",
+    customerFeedback: "安装质量很好，密封处理到位，开关顺畅，非常满意！",
+    needsRework: false,
+    createdAt: daysAgo(60),
+    updatedAt: daysAgo(60),
+  },
+  {
+    id: "insp-002",
+    orderId: "ord-002",
+    inspectionDate: daysAgo(48).split("T")[0],
+    result: "pass",
+    customerFeedback: "整体满意，大落地窗效果很好，就是有一个窗户把手有点松，师傅当场调整好了。",
+    needsRework: false,
+    createdAt: daysAgo(48),
+    updatedAt: daysAgo(48),
+  },
+  {
+    id: "insp-003",
+    orderId: "ord-003",
+    inspectionDate: daysAgo(35).split("T")[0],
+    result: "rework",
+    customerFeedback: "发现主卧室窗户右下角有轻微渗水痕迹，需要重新打胶处理。",
+    needsRework: true,
+    reworkReason: "窗户边角密封胶施工不到位，导致雨天渗水",
+    reworkProgress: "已安排师傅上门重新打胶，等待雨天测试效果",
+    reworkCompletedAt: daysAgo(33),
+    createdAt: daysAgo(35),
+    updatedAt: daysAgo(33),
+  },
+];
+
+export const mockAfterSalesTickets: AfterSalesTicket[] = [
+  {
+    id: "as-001",
+    customerId: "cust-002",
+    orderId: "ord-002",
+    issueType: "五金松动",
+    description: "客户反映客厅大窗户的把手使用半年后有点松动，开关时有点晃",
+    appointmentDate: daysAgo(15).split("T")[0],
+    handler: "李师傅",
+    status: "completed",
+    result: "上门紧固把手螺丝，调整了传动器，现在开关顺畅。客户表示满意。",
+    completedAt: daysAgo(15),
+    createdAt: daysAgo(16),
+    updatedAt: daysAgo(15),
+  },
+  {
+    id: "as-002",
+    customerId: "cust-003",
+    orderId: "ord-004",
+    issueType: "漏水问题",
+    description: "客户说下雨时阳台窗框底部有点渗水，担心泡坏木地板",
+    appointmentDate: daysAgo(5).split("T")[0],
+    handler: "张师傅",
+    status: "processing",
+    result: "已上门检查，发现是排水孔堵塞导致积水。已清理排水孔并重新打胶，观察后续效果。",
+    createdAt: daysAgo(6),
+    updatedAt: daysAgo(5),
+  },
+  {
+    id: "as-003",
+    customerId: "cust-001",
+    orderId: "ord-003",
+    issueType: "密封条老化",
+    description: "次卧窗户使用1年后，密封胶条有点变硬，担心密封效果下降",
+    appointmentDate: daysAgo(-3).split("T")[0],
+    handler: "王师傅",
+    status: "pending",
+    createdAt: daysAgo(1),
+    updatedAt: daysAgo(1),
+  },
+  {
+    id: "as-004",
+    customerId: "cust-005",
+    issueType: "开关不畅",
+    description: "厨房窗户最近开关有点卡，需要用力才能关上",
+    handler: "李师傅",
+    status: "pending",
+    createdAt: daysAgo(2),
+    updatedAt: daysAgo(2),
   },
 ];

@@ -10,6 +10,11 @@ import type {
   PaymentType,
   InstallationAppointment,
   FollowUpRecord,
+  ContractConfirmation,
+  InspectionRecord,
+  InspectionResult,
+  AfterSalesTicket,
+  AfterSalesStatus,
 } from "./types";
 import {
   mockCustomers,
@@ -19,6 +24,9 @@ import {
   mockPayments,
   mockAppointments,
   mockFollowUps,
+  mockContracts,
+  mockInspections,
+  mockAfterSalesTickets,
 } from "./initialData";
 import { generateId, generateOrderNo, calcOrderSummary } from "@/utils";
 
@@ -49,6 +57,9 @@ interface AppState {
   payments: PaymentRecord[];
   appointments: InstallationAppointment[];
   followUps: FollowUpRecord[];
+  contracts: ContractConfirmation[];
+  inspections: InspectionRecord[];
+  afterSalesTickets: AfterSalesTicket[];
 
   getCustomerById: (id: string) => Customer | undefined;
   getOrderById: (id: string) => Order | undefined;
@@ -61,6 +72,10 @@ interface AppState {
   getAppointmentByOrderId: (orderId: string) => InstallationAppointment | undefined;
   getAppointmentsByDateRange: (startDate: string, endDate: string) => InstallationAppointment[];
   getFollowUpsByCustomerId: (customerId: string) => FollowUpRecord[];
+  getContractByOrderId: (orderId: string) => ContractConfirmation | undefined;
+  getInspectionByOrderId: (orderId: string) => InspectionRecord | undefined;
+  getAfterSalesTicketsByCustomerId: (customerId: string) => AfterSalesTicket[];
+  getAfterSalesTicketsByOrderId: (orderId: string) => AfterSalesTicket[];
 
   createOrder: (input: OrderInput) => Order;
   updateOrder: (id: string, input: Partial<OrderInput>) => void;
@@ -95,6 +110,38 @@ interface AppState {
   }) => void;
   removeFollowUp: (followUpId: string) => void;
 
+  setContract: (orderId: string, input: {
+    paymentTerms: string;
+    installationTerms: string;
+    warrantyMonths: number;
+    customerSignature?: string;
+    signedAt?: string;
+  }) => void;
+  removeContract: (contractId: string) => void;
+
+  setInspection: (orderId: string, input: {
+    inspectionDate: string;
+    result: InspectionResult;
+    customerFeedback: string;
+    needsRework: boolean;
+    reworkReason?: string;
+    reworkProgress?: string;
+    reworkCompletedAt?: string;
+  }) => void;
+  updateInspectionRework: (inspectionId: string, reworkProgress: string, completed?: boolean) => void;
+  removeInspection: (inspectionId: string) => void;
+
+  addAfterSalesTicket: (input: {
+    customerId: string;
+    orderId?: string;
+    issueType: string;
+    description: string;
+    appointmentDate?: string;
+    handler?: string;
+  }) => void;
+  updateAfterSalesStatus: (ticketId: string, status: AfterSalesStatus, result?: string) => void;
+  removeAfterSalesTicket: (ticketId: string) => void;
+
   resetAllData: () => void;
 }
 
@@ -108,6 +155,9 @@ export const useStore = create<AppState>()(
       payments: mockPayments,
       appointments: mockAppointments,
       followUps: mockFollowUps,
+      contracts: mockContracts,
+      inspections: mockInspections,
+      afterSalesTickets: mockAfterSalesTickets,
 
       getCustomerById: (id) => get().customers.find((c) => c.id === id),
       getOrderById: (id) => get().orders.find((o) => o.id === id),
@@ -135,6 +185,18 @@ export const useStore = create<AppState>()(
         get()
           .followUps.filter((f) => f.customerId === customerId)
           .sort((a, b) => new Date(b.contactDate).getTime() - new Date(a.contactDate).getTime()),
+      getContractByOrderId: (orderId) =>
+        get().contracts.find((c) => c.orderId === orderId),
+      getInspectionByOrderId: (orderId) =>
+        get().inspections.find((i) => i.orderId === orderId),
+      getAfterSalesTicketsByCustomerId: (customerId) =>
+        get()
+          .afterSalesTickets.filter((t) => t.customerId === customerId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      getAfterSalesTicketsByOrderId: (orderId) =>
+        get()
+          .afterSalesTickets.filter((t) => t.orderId === orderId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
 
       createOrder: (input) => {
         const state = get();
@@ -254,17 +316,6 @@ export const useStore = create<AppState>()(
 
         set({
           orders: state.orders.map((o) => (o.id === id ? updatedOrder : o)),
-        });
-      },
-
-      deleteOrder: (id) => {
-        const state = get();
-        set({
-          orders: state.orders.filter((o) => o.id !== id),
-          windowItems: state.windowItems.filter((w) => w.orderId !== id),
-          photos: state.photos.filter((p) => p.orderId !== id),
-          payments: state.payments.filter((p) => p.orderId !== id),
-          appointments: state.appointments.filter((a) => a.orderId !== id),
         });
       },
 
@@ -420,6 +471,167 @@ export const useStore = create<AppState>()(
         set({ followUps: state.followUps.filter((f) => f.id !== followUpId) });
       },
 
+      setContract: (orderId, input) => {
+        const state = get();
+        const now = new Date().toISOString();
+        const existing = state.contracts.find((c) => c.orderId === orderId);
+
+        if (existing) {
+          set({
+            contracts: state.contracts.map((c) =>
+              c.id === existing.id
+                ? {
+                    ...c,
+                    paymentTerms: input.paymentTerms,
+                    installationTerms: input.installationTerms,
+                    warrantyMonths: input.warrantyMonths,
+                    customerSignature: input.customerSignature,
+                    signedAt: input.signedAt,
+                    updatedAt: now,
+                  }
+                : c
+            ),
+          });
+        } else {
+          const newContract: ContractConfirmation = {
+            id: generateId("contract-"),
+            orderId,
+            paymentTerms: input.paymentTerms,
+            installationTerms: input.installationTerms,
+            warrantyMonths: input.warrantyMonths,
+            customerSignature: input.customerSignature,
+            signedAt: input.signedAt,
+            createdAt: now,
+            updatedAt: now,
+          };
+          set({ contracts: [...state.contracts, newContract] });
+        }
+      },
+
+      removeContract: (contractId) => {
+        const state = get();
+        set({ contracts: state.contracts.filter((c) => c.id !== contractId) });
+      },
+
+      setInspection: (orderId, input) => {
+        const state = get();
+        const now = new Date().toISOString();
+        const existing = state.inspections.find((i) => i.orderId === orderId);
+
+        if (existing) {
+          set({
+            inspections: state.inspections.map((i) =>
+              i.id === existing.id
+                ? {
+                    ...i,
+                    inspectionDate: input.inspectionDate,
+                    result: input.result,
+                    customerFeedback: input.customerFeedback,
+                    needsRework: input.needsRework,
+                    reworkReason: input.reworkReason,
+                    reworkProgress: input.reworkProgress,
+                    reworkCompletedAt: input.reworkCompletedAt,
+                    updatedAt: now,
+                  }
+                : i
+            ),
+          });
+        } else {
+          const newInspection: InspectionRecord = {
+            id: generateId("insp-"),
+            orderId,
+            inspectionDate: input.inspectionDate,
+            result: input.result,
+            customerFeedback: input.customerFeedback,
+            needsRework: input.needsRework,
+            reworkReason: input.reworkReason,
+            reworkProgress: input.reworkProgress,
+            reworkCompletedAt: input.reworkCompletedAt,
+            createdAt: now,
+            updatedAt: now,
+          };
+          set({ inspections: [...state.inspections, newInspection] });
+        }
+      },
+
+      updateInspectionRework: (inspectionId, reworkProgress, completed) => {
+        const state = get();
+        const now = new Date().toISOString();
+        set({
+          inspections: state.inspections.map((i) =>
+            i.id === inspectionId
+              ? {
+                  ...i,
+                  reworkProgress,
+                  reworkCompletedAt: completed ? now : i.reworkCompletedAt,
+                  result: completed ? "pass" : i.result,
+                  updatedAt: now,
+                }
+              : i
+          ),
+        });
+      },
+
+      removeInspection: (inspectionId) => {
+        const state = get();
+        set({ inspections: state.inspections.filter((i) => i.id !== inspectionId) });
+      },
+
+      addAfterSalesTicket: (input) => {
+        const state = get();
+        const now = new Date().toISOString();
+        const newTicket: AfterSalesTicket = {
+          id: generateId("as-"),
+          customerId: input.customerId,
+          orderId: input.orderId,
+          issueType: input.issueType,
+          description: input.description,
+          appointmentDate: input.appointmentDate,
+          handler: input.handler,
+          status: "pending",
+          createdAt: now,
+          updatedAt: now,
+        };
+        set({ afterSalesTickets: [...state.afterSalesTickets, newTicket] });
+      },
+
+      updateAfterSalesStatus: (ticketId, status, result) => {
+        const state = get();
+        const now = new Date().toISOString();
+        set({
+          afterSalesTickets: state.afterSalesTickets.map((t) =>
+            t.id === ticketId
+              ? {
+                  ...t,
+                  status,
+                  result: result ?? t.result,
+                  completedAt: status === "completed" ? now : t.completedAt,
+                  updatedAt: now,
+                }
+              : t
+          ),
+        });
+      },
+
+      removeAfterSalesTicket: (ticketId) => {
+        const state = get();
+        set({ afterSalesTickets: state.afterSalesTickets.filter((t) => t.id !== ticketId) });
+      },
+
+      deleteOrder: (id) => {
+        const state = get();
+        set({
+          orders: state.orders.filter((o) => o.id !== id),
+          windowItems: state.windowItems.filter((w) => w.orderId !== id),
+          photos: state.photos.filter((p) => p.orderId !== id),
+          payments: state.payments.filter((p) => p.orderId !== id),
+          appointments: state.appointments.filter((a) => a.orderId !== id),
+          contracts: state.contracts.filter((c) => c.orderId !== id),
+          inspections: state.inspections.filter((i) => i.orderId !== id),
+          afterSalesTickets: state.afterSalesTickets.filter((t) => t.orderId !== id),
+        });
+      },
+
       resetAllData: () => {
         set({
           customers: mockCustomers,
@@ -429,6 +641,9 @@ export const useStore = create<AppState>()(
           payments: mockPayments,
           appointments: mockAppointments,
           followUps: mockFollowUps,
+          contracts: mockContracts,
+          inspections: mockInspections,
+          afterSalesTickets: mockAfterSalesTickets,
         });
       },
     }),

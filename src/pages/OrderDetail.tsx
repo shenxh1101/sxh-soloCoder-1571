@@ -27,6 +27,12 @@ import {
   FileSpreadsheet,
   Clock,
   HardHat,
+  FileSignature,
+  CheckCircle,
+  AlertTriangle,
+  RefreshCw,
+  MessageSquare,
+  ClipboardCheck,
 } from "lucide-react";
 import { useStore } from "@/store";
 import {
@@ -35,6 +41,8 @@ import {
   type OrderStatus,
   type PaymentType,
   PAYMENT_TYPE_LABELS,
+  INSPECTION_RESULT_LABELS,
+  type InspectionResult,
 } from "@/store/types";
 import StatusBadge from "@/components/order/StatusBadge";
 import StatusProgress from "@/components/order/StatusProgress";
@@ -61,6 +69,8 @@ export default function OrderDetail() {
   const photos = useStore((s) => s.photos);
   const payments = useStore((s) => s.payments);
   const appointments = useStore((s) => s.appointments);
+  const contracts = useStore((s) => s.contracts);
+  const inspections = useStore((s) => s.inspections);
 
   const order = useMemo(
     () => orders.find((o) => o.id === id),
@@ -86,6 +96,14 @@ export default function OrderDetail() {
     () => appointments.find((a) => a.orderId === id),
     [appointments, id]
   );
+  const orderContract = useMemo(
+    () => contracts.find((c) => c.orderId === id),
+    [contracts, id]
+  );
+  const orderInspection = useMemo(
+    () => inspections.find((i) => i.orderId === id),
+    [inspections, id]
+  );
   const { totalPaid, totalUnpaid } = useMemo(() => {
     const paid = orderPayments.reduce((s, p) => s + p.amount, 0);
     return {
@@ -103,11 +121,30 @@ export default function OrderDetail() {
   const removePayment = useStore((s) => s.removePayment);
   const setAppointment = useStore((s) => s.setAppointment);
   const removeAppointment = useStore((s) => s.removeAppointment);
+  const setInspection = useStore((s) => s.setInspection);
+  const updateInspectionRework = useStore((s) => s.updateInspectionRework);
+  const removeInspection = useStore((s) => s.removeInspection);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
+  const [showReworkModal, setShowReworkModal] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+
+  const [inspectionForm, setInspectionForm] = useState({
+    inspectionDate: new Date().toISOString().split("T")[0],
+    result: "pass" as InspectionResult,
+    customerFeedback: "",
+    needsRework: false,
+    reworkReason: "",
+    reworkProgress: "",
+  });
+
+  const [reworkForm, setReworkForm] = useState({
+    reworkProgress: "",
+    completed: false,
+  });
 
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
@@ -130,11 +167,81 @@ export default function OrderDetail() {
         setPreviewPhoto(null);
         setShowPaymentModal(false);
         setShowAppointmentModal(false);
+        setShowInspectionModal(false);
+        setShowReworkModal(false);
       }
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, []);
+
+  const handleOpenInspectionModal = () => {
+    if (orderInspection) {
+      setInspectionForm({
+        inspectionDate: orderInspection.inspectionDate,
+        result: orderInspection.result,
+        customerFeedback: orderInspection.customerFeedback,
+        needsRework: orderInspection.needsRework,
+        reworkReason: orderInspection.reworkReason || "",
+        reworkProgress: orderInspection.reworkProgress || "",
+      });
+    } else {
+      setInspectionForm({
+        inspectionDate: new Date().toISOString().split("T")[0],
+        result: "pass",
+        customerFeedback: "",
+        needsRework: false,
+        reworkReason: "",
+        reworkProgress: "",
+      });
+    }
+    setShowInspectionModal(true);
+  };
+
+  const handleSetInspection = () => {
+    if (!order) return;
+    if (!inspectionForm.inspectionDate) {
+      alert("请选择验收日期");
+      return;
+    }
+    setInspection(order.id, {
+      inspectionDate: inspectionForm.inspectionDate,
+      result: inspectionForm.result,
+      customerFeedback: inspectionForm.customerFeedback.trim(),
+      needsRework: inspectionForm.needsRework,
+      reworkReason: inspectionForm.needsRework
+        ? inspectionForm.reworkReason.trim() || undefined
+        : undefined,
+      reworkProgress:
+        inspectionForm.needsRework && inspectionForm.reworkProgress.trim()
+          ? inspectionForm.reworkProgress.trim()
+          : undefined,
+    });
+    setShowInspectionModal(false);
+  };
+
+  const handleOpenReworkModal = () => {
+    if (!orderInspection) return;
+    setReworkForm({
+      reworkProgress: orderInspection.reworkProgress || "",
+      completed: false,
+    });
+    setShowReworkModal(true);
+  };
+
+  const handleUpdateRework = () => {
+    if (!orderInspection) return;
+    if (!reworkForm.reworkProgress.trim()) {
+      alert("请填写返工处理进度");
+      return;
+    }
+    updateInspectionRework(
+      orderInspection.id,
+      reworkForm.reworkProgress.trim(),
+      reworkForm.completed
+    );
+    setShowReworkModal(false);
+  };
 
   const handleOpenAppointmentModal = () => {
     if (orderAppointment) {
@@ -310,6 +417,16 @@ export default function OrderDetail() {
             className="btn-secondary flex items-center gap-2"
           >
             <FileSpreadsheet className="w-4 h-4" /> 报价单
+          </Link>
+          <Link
+            to={`/orders/${order.id}/contract`}
+            target="_blank"
+            className="btn-secondary flex items-center gap-2"
+          >
+            <FileSignature className="w-4 h-4" /> 合同确认单
+            {orderContract?.signedAt && (
+              <span className="w-2 h-2 rounded-full bg-status-completed" />
+            )}
           </Link>
           <button
             onClick={() => setIsEditing(true)}
@@ -561,6 +678,169 @@ export default function OrderDetail() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="section-title mb-0">
+            <ClipboardCheck className="w-5 h-5 text-copper-500" /> 安装验收
+          </h3>
+          <div className="flex items-center gap-2">
+            {orderInspection && (
+              <button
+                onClick={() => {
+                  if (confirm("确定删除这条验收记录吗？")) {
+                    removeInspection(orderInspection.id);
+                  }
+                }}
+                className="btn-secondary flex items-center gap-2 !py-2 !px-3 !text-sm !text-red-500 hover:!bg-red-50"
+              >
+                <X className="w-4 h-4" /> 删除
+              </button>
+            )}
+            <button
+              onClick={handleOpenInspectionModal}
+              className="btn-primary flex items-center gap-2 !py-2 !px-3 !text-sm"
+            >
+              <Plus className="w-4 h-4" /> {orderInspection ? "修改验收" : "记录验收"}
+            </button>
+          </div>
+        </div>
+
+        {!orderInspection ? (
+          <div className="border-2 border-dashed border-walnut-200 rounded-xl py-12 text-center">
+            <div className="text-walnut-300 text-5xl mb-3">✅</div>
+            <p className="text-walnut-500 mb-4">暂无验收记录</p>
+            <button
+              onClick={handleOpenInspectionModal}
+              className="btn-secondary inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> 立即记录验收
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-copper-gradient/15 flex items-center justify-center">
+                    <CalendarDays className="w-5 h-5 text-copper-600" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-walnut-400">验收日期</div>
+                    <div className="font-semibold text-walnut-800">
+                      {formatDate(orderInspection.inspectionDate)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    orderInspection.result === "pass"
+                      ? "bg-green-100"
+                      : orderInspection.result === "rework"
+                      ? "bg-orange-100"
+                      : "bg-gray-100"
+                  }`}>
+                    {orderInspection.result === "pass" ? (
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    ) : orderInspection.result === "rework" ? (
+                      <AlertTriangle className="w-5 h-5 text-orange-600" />
+                    ) : (
+                      <Clock className="w-5 h-5 text-gray-600" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-xs text-walnut-400">验收结果</div>
+                    <div className={`font-semibold ${
+                      orderInspection.result === "pass"
+                        ? "text-green-600"
+                        : orderInspection.result === "rework"
+                        ? "text-orange-600"
+                        : "text-gray-600"
+                    }`}>
+                      {INSPECTION_RESULT_LABELS[orderInspection.result]}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-xl bg-copper-gradient/15 flex items-center justify-center">
+                    <UserCheck className="w-5 h-5 text-copper-600" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-walnut-400">是否需要返工</div>
+                    <div className={`font-semibold ${
+                      orderInspection.needsRework ? "text-orange-600" : "text-green-600"
+                    }`}>
+                      {orderInspection.needsRework ? "需要返工" : "无需返工"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {orderInspection.customerFeedback && (
+              <div className="p-4 rounded-xl bg-cream-50 border border-walnut-100">
+                <div className="flex items-start gap-3">
+                  <MessageSquare className="w-5 h-5 text-copper-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs text-walnut-400 mb-1">客户反馈</div>
+                    <div className="text-walnut-700 leading-relaxed">
+                      {orderInspection.customerFeedback}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {orderInspection.needsRework && (
+              <div className="p-4 rounded-xl bg-orange-50 border border-orange-200">
+                <div className="flex items-start gap-3">
+                  <RefreshCw className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-sm font-semibold text-orange-800">返工处理</div>
+                      <button
+                        onClick={handleOpenReworkModal}
+                        className="btn-primary !py-1.5 !px-3 !text-xs"
+                      >
+                        更新进度
+                      </button>
+                    </div>
+                    {orderInspection.reworkReason && (
+                      <div className="mb-3">
+                        <div className="text-xs text-orange-600 mb-1">返工原因</div>
+                        <div className="text-orange-800">
+                          {orderInspection.reworkReason}
+                        </div>
+                      </div>
+                    )}
+                    {orderInspection.reworkProgress && (
+                      <div className="mb-3">
+                        <div className="text-xs text-orange-600 mb-1">处理进度</div>
+                        <div className="text-orange-800">
+                          {orderInspection.reworkProgress}
+                        </div>
+                      </div>
+                    )}
+                    {orderInspection.reworkCompletedAt && (
+                      <div className="text-xs text-green-600 font-medium">
+                        ✓ 返工已于 {formatDate(orderInspection.reworkCompletedAt)} 完成
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="text-xs text-walnut-400 text-right">
+              记录于 {formatDateTime(orderInspection.createdAt)}
             </div>
           </div>
         )}
@@ -976,6 +1256,218 @@ export default function OrderDetail() {
                 className="btn-primary flex items-center gap-2 !py-2 !px-4"
               >
                 <Save className="w-4 h-4" /> 确认预约
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInspectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 mx-4 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-serif text-xl font-bold text-walnut-800">
+                {orderInspection ? "修改验收记录" : "记录安装验收"}
+              </h3>
+              <button
+                onClick={() => setShowInspectionModal(false)}
+                className="p-2 rounded-lg hover:bg-walnut-50 text-walnut-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-walnut-700 mb-2">
+                    验收日期
+                  </label>
+                  <input
+                    type="date"
+                    value={inspectionForm.inspectionDate}
+                    onChange={(e) =>
+                      setInspectionForm({ ...inspectionForm, inspectionDate: e.target.value })
+                    }
+                    className="w-full px-4 py-2.5 rounded-xl border border-walnut-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-walnut-700 mb-2">
+                    验收结果
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(INSPECTION_RESULT_LABELS).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          setInspectionForm({
+                            ...inspectionForm,
+                            result: value as InspectionResult,
+                            needsRework: value === "rework" ? true : inspectionForm.needsRework,
+                          })
+                        }
+                        className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                          inspectionForm.result === value
+                            ? "bg-copper-gradient text-white shadow-copper"
+                            : "bg-cream-50 text-walnut-600 hover:bg-cream-100"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-walnut-700 mb-2">
+                  客户反馈
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="请填写客户的验收意见和反馈"
+                  value={inspectionForm.customerFeedback}
+                  onChange={(e) =>
+                    setInspectionForm({ ...inspectionForm, customerFeedback: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-xl border border-walnut-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="needsRework"
+                  checked={inspectionForm.needsRework}
+                  onChange={(e) =>
+                    setInspectionForm({
+                      ...inspectionForm,
+                      needsRework: e.target.checked,
+                      result: e.target.checked ? "rework" : inspectionForm.result,
+                    })
+                  }
+                  className="w-5 h-5 rounded border-walnut-300 text-copper-600 focus:ring-copper-500"
+                />
+                <label htmlFor="needsRework" className="text-sm font-medium text-walnut-700">
+                  是否需要返工
+                </label>
+              </div>
+
+              {inspectionForm.needsRework && (
+                <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-orange-800 mb-2">
+                      返工原因
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="请详细描述需要返工的原因"
+                      value={inspectionForm.reworkReason}
+                      onChange={(e) =>
+                        setInspectionForm({ ...inspectionForm, reworkReason: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-orange-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800 resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-orange-800 mb-2">
+                      当前处理进度
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="返工的处理进度（选填）"
+                      value={inspectionForm.reworkProgress}
+                      onChange={(e) =>
+                        setInspectionForm({ ...inspectionForm, reworkProgress: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-xl border border-orange-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800 resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowInspectionModal(false)}
+                className="btn-secondary !py-2 !px-4"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSetInspection}
+                className="btn-primary flex items-center gap-2 !py-2 !px-4"
+              >
+                <Save className="w-4 h-4" /> 确认记录
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReworkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 mx-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-serif text-xl font-bold text-walnut-800">
+                更新返工进度
+              </h3>
+              <button
+                onClick={() => setShowReworkModal(false)}
+                className="p-2 rounded-lg hover:bg-walnut-50 text-walnut-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-walnut-700 mb-2">
+                  处理进度
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="请详细描述返工的处理进度"
+                  value={reworkForm.reworkProgress}
+                  onChange={(e) =>
+                    setReworkForm({ ...reworkForm, reworkProgress: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-xl border border-walnut-200 focus:border-copper-500 focus:ring-2 focus:ring-copper-500/20 outline-none transition-all text-walnut-800 resize-none"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="reworkCompleted"
+                  checked={reworkForm.completed}
+                  onChange={(e) =>
+                    setReworkForm({ ...reworkForm, completed: e.target.checked })
+                  }
+                  className="w-5 h-5 rounded border-walnut-300 text-copper-600 focus:ring-copper-500"
+                />
+                <label htmlFor="reworkCompleted" className="text-sm font-medium text-walnut-700">
+                  标记为返工完成
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowReworkModal(false)}
+                className="btn-secondary !py-2 !px-4"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleUpdateRework}
+                className="btn-primary flex items-center gap-2 !py-2 !px-4"
+              >
+                <Save className="w-4 h-4" /> 确认更新
               </button>
             </div>
           </div>
