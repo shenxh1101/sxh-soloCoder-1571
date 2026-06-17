@@ -7,7 +7,7 @@ import OrderCard from "@/components/order/OrderCard";
 
 export default function OrderList() {
   const orders = useStore((s) => s.orders);
-  const getCustomerById = useStore((s) => s.getCustomerById);
+  const customers = useStore((s) => s.customers);
   const advanceOrderStatus = useStore((s) => s.advanceOrderStatus);
   const deleteOrder = useStore((s) => s.deleteOrder);
 
@@ -15,6 +15,8 @@ export default function OrderList() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  const getCustomerById = (id: string) => customers.find((c) => c.id === id);
 
   const filteredOrders = useMemo(() => {
     return orders
@@ -42,7 +44,7 @@ export default function OrderList() {
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-  }, [orders, search, statusFilter, dateFrom, dateTo, getCustomerById]);
+  }, [orders, search, statusFilter, dateFrom, dateTo, customers]);
 
   const handleDelete = (id: string) => {
     if (confirm("确定要删除这个订单吗？此操作不可撤销。")) {

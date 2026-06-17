@@ -8,6 +8,8 @@ import {
   Layers,
   Award,
   Calendar,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   useStatistics,
@@ -16,8 +18,8 @@ import {
   useGlassStats,
 } from "@/hooks/useStatistics";
 import { useStore } from "@/store";
-import { STATUS_LABELS, STATUS_FLOW } from "@/store/types";
-import { formatCurrency } from "@/utils";
+import { STATUS_LABELS, STATUS_FLOW, PROFILE_COLORS } from "@/store/types";
+import { formatCurrency, exportToCsv } from "@/utils";
 
 export default function Statistics() {
   const stats = useStatistics();
@@ -25,6 +27,9 @@ export default function Statistics() {
   const colorRank = useColorRank();
   const glass = useGlassStats();
   const orders = useStore((s) => s.orders);
+  const customers = useStore((s) => s.customers);
+  const windowItems = useStore((s) => s.windowItems);
+  const payments = useStore((s) => s.payments);
 
   const today = new Date();
   const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -33,6 +38,14 @@ export default function Statistics() {
     today.getMonth() - 1,
     1
   );
+
+  const getCustomerById = (id: string) => customers.find((c) => c.id === id);
+  const getItemsByOrderId = (orderId: string) =>
+    windowItems.filter((i) => i.orderId === orderId);
+  const getTotalPaidByOrderId = (orderId: string) =>
+    payments
+      .filter((p) => p.orderId === orderId)
+      .reduce((s, p) => s + p.amount, 0);
 
   const { thisMonth, lastMonth } = useMemo(() => {
     const tm = orders.filter(
@@ -45,6 +58,45 @@ export default function Statistics() {
     );
     return { thisMonth: tm, lastMonth: lm };
   }, [orders, thisMonthStart, lastMonthStart]);
+
+  const handleExport = () => {
+    const rows = thisMonth
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .map((order) => {
+        const customer = getCustomerById(order.customerId);
+        const items = getItemsByOrderId(order.id);
+        const totalPaid = getTotalPaidByOrderId(order.id);
+        const totalUnpaid = order.totalAmount - totalPaid;
+
+        const colors = [...new Set(items.map((i) => i.profileColor))];
+        const colorStr = colors.join("、") || "-";
+
+        let paymentStatus = "未收款";
+        if (totalPaid <= 0) paymentStatus = "未收款";
+        else if (totalUnpaid <= 0) paymentStatus = "已结清";
+        else paymentStatus = "部分收款";
+
+        return {
+          订单号: order.orderNo,
+          客户姓名: customer?.name || "-",
+          联系电话: customer?.phone || "-",
+          安装地址: customer?.address || "-",
+          型材颜色: colorStr,
+          订单金额: order.totalAmount,
+          已收金额: totalPaid,
+          未收金额: totalUnpaid,
+          收款状态: paymentStatus,
+          订单进度: STATUS_LABELS[order.status],
+          下单日期: order.createdAt.split("T")[0],
+        };
+      });
+
+    const monthStr = `${today.getFullYear()}年${today.getMonth() + 1}月`;
+    exportToCsv(rows, `门窗订单报表-${monthStr}.csv`);
+  };
 
   const thisMonthRevenue = thisMonth.reduce(
     (s, o) => s + o.totalAmount,
@@ -86,7 +138,6 @@ export default function Statistics() {
     for (const o of orders) {
       map.set(o.customerId, (map.get(o.customerId) ?? 0) + o.totalAmount);
     }
-    const getCustomerById = useStore.getState().getCustomerById;
     return [...map.entries()]
       .map(([cid, amt]) => ({
         customer: getCustomerById(cid),
@@ -95,7 +146,7 @@ export default function Statistics() {
       .filter((x) => x.customer)
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
-  }, [orders]);
+  }, [orders, customers]);
 
   const revenueTrendOption = {
     tooltip: {
@@ -362,6 +413,13 @@ export default function Statistics() {
             数据概览
           </p>
         </div>
+        <button
+          onClick={handleExport}
+          className="btn-primary flex items-center gap-2"
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          导出本月报表
+        </button>
       </div>
 
       <div className="grid grid-cols-3 gap-5">

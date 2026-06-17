@@ -1,4 +1,4 @@
-import type { Customer, Order, WindowItem, InstallationPhoto } from "./types";
+import type { Customer, Order, WindowItem, InstallationPhoto, PaymentRecord } from "./types";
 
 const now = new Date();
 const daysAgo = (d: number) => {
@@ -211,4 +211,20 @@ export const mockPhotos: InstallationPhoto[] = [
     dataUrl: "https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cozy%20bedroom%20with%20white%20frame%20windows%2C%20single%20glass%2C%20neatly%20installed%20with%20curtains&image_size=landscape_4_3",
     uploadedAt: daysAgo(33),
   },
+];
+
+export const mockPayments: PaymentRecord[] = [
+  { id: "pay-001", orderId: "ord-001", amount: 10000, paymentType: "deposit", paymentDate: daysAgo(78).split("T")[0], remark: "下单时支付定金30%", createdAt: daysAgo(78) },
+  { id: "pay-002", orderId: "ord-001", amount: 18600, paymentType: "balance", paymentDate: daysAgo(60).split("T")[0], remark: "安装验收合格后付清尾款", createdAt: daysAgo(60) },
+  { id: "pay-003", orderId: "ord-002", amount: 15000, paymentType: "deposit", paymentDate: daysAgo(65).split("T")[0], remark: "定金", createdAt: daysAgo(65) },
+  { id: "pay-004", orderId: "ord-002", amount: 27300, paymentType: "balance", paymentDate: daysAgo(48).split("T")[0], remark: "完工结清", createdAt: daysAgo(48) },
+  { id: "pay-005", orderId: "ord-003", amount: 6000, paymentType: "deposit", paymentDate: daysAgo(47).split("T")[0], remark: "", createdAt: daysAgo(47) },
+  { id: "pay-006", orderId: "ord-003", amount: 9800, paymentType: "balance", paymentDate: daysAgo(33).split("T")[0], remark: "", createdAt: daysAgo(33) },
+  { id: "pay-007", orderId: "ord-004", amount: 20000, paymentType: "deposit", paymentDate: daysAgo(38).split("T")[0], remark: "30%定金", createdAt: daysAgo(38) },
+  { id: "pay-008", orderId: "ord-004", amount: 20000, paymentType: "installment", paymentDate: daysAgo(10).split("T")[0], remark: "生产进度款", createdAt: daysAgo(10) },
+  { id: "pay-009", orderId: "ord-005", amount: 12000, paymentType: "deposit", paymentDate: daysAgo(28).split("T")[0], remark: "", createdAt: daysAgo(28) },
+  { id: "pay-010", orderId: "ord-006", amount: 8000, paymentType: "deposit", paymentDate: daysAgo(17).split("T")[0], remark: "", createdAt: daysAgo(17) },
+  { id: "pay-011", orderId: "ord-007", amount: 15000, paymentType: "deposit", paymentDate: daysAgo(13).split("T")[0], remark: "老客户，优惠500", createdAt: daysAgo(13) },
+  { id: "pay-012", orderId: "ord-008", amount: 5000, paymentType: "deposit", paymentDate: daysAgo(8).split("T")[0], remark: "", createdAt: daysAgo(8) },
+  { id: "pay-013", orderId: "ord-009", amount: 10000, paymentType: "deposit", paymentDate: daysAgo(6).split("T")[0], remark: "王总介绍的客户", createdAt: daysAgo(6) },
 ];

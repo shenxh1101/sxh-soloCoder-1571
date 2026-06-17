@@ -6,12 +6,15 @@ import type {
   WindowItem,
   InstallationPhoto,
   OrderStatus,
+  PaymentRecord,
+  PaymentType,
 } from "./types";
 import {
   mockCustomers,
   mockOrders,
   mockWindowItems,
   mockPhotos,
+  mockPayments,
 } from "./initialData";
 import { generateId, generateOrderNo, calcOrderSummary } from "@/utils";
 
@@ -39,13 +42,16 @@ interface AppState {
   orders: Order[];
   windowItems: WindowItem[];
   photos: InstallationPhoto[];
+  payments: PaymentRecord[];
 
   getCustomerById: (id: string) => Customer | undefined;
   getOrderById: (id: string) => Order | undefined;
   getItemsByOrderId: (orderId: string) => WindowItem[];
   getPhotosByOrderId: (orderId: string) => InstallationPhoto[];
+  getPaymentsByOrderId: (orderId: string) => PaymentRecord[];
   getOrdersByCustomerId: (customerId: string) => Order[];
   findCustomerByPhone: (phone: string) => Customer | undefined;
+  getTotalPaidByOrderId: (orderId: string) => number;
 
   createOrder: (input: OrderInput) => Order;
   updateOrder: (id: string, input: Partial<OrderInput>) => void;
@@ -55,6 +61,14 @@ interface AppState {
 
   addInstallationPhoto: (orderId: string, dataUrl: string) => void;
   removeInstallationPhoto: (photoId: string) => void;
+
+  addPayment: (orderId: string, input: {
+    amount: number;
+    paymentType: PaymentType;
+    paymentDate: string;
+    remark?: string;
+  }) => void;
+  removePayment: (paymentId: string) => void;
 
   resetAllData: () => void;
 }
@@ -66,6 +80,7 @@ export const useStore = create<AppState>()(
       orders: mockOrders,
       windowItems: mockWindowItems,
       photos: mockPhotos,
+      payments: mockPayments,
 
       getCustomerById: (id) => get().customers.find((c) => c.id === id),
       getOrderById: (id) => get().orders.find((o) => o.id === id),
@@ -73,10 +88,16 @@ export const useStore = create<AppState>()(
         get().windowItems.filter((w) => w.orderId === orderId),
       getPhotosByOrderId: (orderId) =>
         get().photos.filter((p) => p.orderId === orderId),
+      getPaymentsByOrderId: (orderId) =>
+        get().payments.filter((p) => p.orderId === orderId),
       getOrdersByCustomerId: (customerId) =>
         get().orders.filter((o) => o.customerId === customerId),
       findCustomerByPhone: (phone) =>
         get().customers.find((c) => c.phone === phone),
+      getTotalPaidByOrderId: (orderId) =>
+        get()
+          .payments.filter((p) => p.orderId === orderId)
+          .reduce((sum, p) => sum + p.amount, 0),
 
       createOrder: (input) => {
         const state = get();
@@ -205,6 +226,7 @@ export const useStore = create<AppState>()(
           orders: state.orders.filter((o) => o.id !== id),
           windowItems: state.windowItems.filter((w) => w.orderId !== id),
           photos: state.photos.filter((p) => p.orderId !== id),
+          payments: state.payments.filter((p) => p.orderId !== id),
         });
       },
 
@@ -272,12 +294,32 @@ export const useStore = create<AppState>()(
         set({ photos: state.photos.filter((p) => p.id !== photoId) });
       },
 
+      addPayment: (orderId, input) => {
+        const state = get();
+        const payment: PaymentRecord = {
+          id: generateId("pay-"),
+          orderId,
+          amount: input.amount,
+          paymentType: input.paymentType,
+          paymentDate: input.paymentDate,
+          remark: input.remark,
+          createdAt: new Date().toISOString(),
+        };
+        set({ payments: [...state.payments, payment] });
+      },
+
+      removePayment: (paymentId) => {
+        const state = get();
+        set({ payments: state.payments.filter((p) => p.id !== paymentId) });
+      },
+
       resetAllData: () => {
         set({
           customers: mockCustomers,
           orders: mockOrders,
           windowItems: mockWindowItems,
           photos: mockPhotos,
+          payments: mockPayments,
         });
       },
     }),

@@ -27,6 +27,25 @@ export interface WindowItem {
   quantity: number;
 }
 
+export type PaymentType = "deposit" | "balance" | "installment" | "other";
+
+export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
+  deposit: "定金",
+  balance: "尾款",
+  installment: "分期款",
+  other: "其他",
+};
+
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  amount: number;
+  paymentType: PaymentType;
+  paymentDate: string;
+  remark?: string;
+  createdAt: string;
+}
+
 export interface InstallationPhoto {
   id: string;
   orderId: string;

@@ -1,4 +1,4 @@
-import type { WindowItem } from "./types";
+import type { WindowItem } from "@/store/types";
 
 export const calcItemProfileMeters = (widthMm: number, heightMm: number): number => {
   return ((widthMm + heightMm) * 2) / 1000;
@@ -90,4 +90,41 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
   } catch {
     return false;
   }
+};
+
+export const exportToCsv = (
+  rows: Record<string, any>[],
+  filename: string
+): void => {
+  if (rows.length === 0) return;
+
+  const headers = Object.keys(rows[0]);
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers
+        .map((h) => {
+          const val = row[h];
+          const str =
+            val === null || val === undefined
+              ? ""
+              : typeof val === "string"
+              ? val.replace(/"/g, '""')
+              : String(val);
+          return `"${str}"`;
+        })
+        .join(",")
+    ),
+  ].join("\n");
+
+  const BOM = "\uFEFF";
+  const blob = new Blob([BOM + csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${filename}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 };

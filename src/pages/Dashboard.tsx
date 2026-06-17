@@ -44,7 +44,9 @@ const statCards = [
 export default function Dashboard() {
   const stats = useStatistics();
   const monthly = useMonthlyStats(6);
-  const getCustomerById = useStore((s) => s.getCustomerById);
+  const customers = useStore((s) => s.customers);
+
+  const getCustomerById = (id: string) => customers.find((c) => c.id === id);
 
   const pieOption = {
     tooltip: { trigger: "item", formatter: "{b}: {c}单 ({d}%)" },

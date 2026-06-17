@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
-import { MapPin, Phone, Calendar, Ruler, Square, Eye, Trash2 } from "lucide-react";
+import { MapPin, Phone, Calendar, Ruler, Square, Eye, Trash2, Wallet } from "lucide-react";
+import { useMemo } from "react";
 import type { Order, Customer } from "@/store/types";
 import StatusBadge from "./StatusBadge";
 import ProgressButton from "./ProgressButton";
 import StatusProgress from "./StatusProgress";
 import { formatCurrency, formatDate, formatNumber } from "@/utils";
+import { useStore } from "@/store";
 
 interface Props {
   order: Order;
@@ -14,6 +16,18 @@ interface Props {
 }
 
 export default function OrderCard({ order, customer, onAdvance, onDelete }: Props) {
+  const payments = useStore((s) => s.payments);
+
+  const { totalPaid, totalUnpaid } = useMemo(() => {
+    const paid = payments
+      .filter((p) => p.orderId === order.id)
+      .reduce((s, p) => s + p.amount, 0);
+    return {
+      totalPaid: paid,
+      totalUnpaid: order.totalAmount - paid,
+    };
+  }, [payments, order.id, order.totalAmount]);
+
   return (
     <div className="card p-6 group">
       <div className="flex items-start justify-between mb-4">
@@ -24,6 +38,17 @@ export default function OrderCard({ order, customer, onAdvance, onDelete }: Prop
                 {customer?.name ?? "未知客户"}
               </span>
               <StatusBadge status={order.status} size="md" />
+              {totalUnpaid > 0 ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-installing/10 text-status-installing text-xs font-medium">
+                  <Wallet className="w-3 h-3" />
+                  待收 {formatCurrency(totalUnpaid)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-status-completed/10 text-status-completed text-xs font-medium">
+                  <Wallet className="w-3 h-3" />
+                  已结清
+                </span>
+              )}
             </div>
             <p className="text-xs text-walnut-400 font-mono">
               订单号 {order.orderNo}
@@ -35,7 +60,10 @@ export default function OrderCard({ order, customer, onAdvance, onDelete }: Prop
             {formatCurrency(order.totalAmount)}
           </div>
           <p className="text-xs text-walnut-400 mt-0.5">
-            {customer?.phone ?? ""}
+            已收 <span className="text-status-completed font-medium">{formatCurrency(totalPaid)}</span>
+            {totalUnpaid > 0 && (
+              <> · 未收 <span className="text-status-installing font-medium">{formatCurrency(totalUnpaid)}</span></>
+            )}
           </p>
         </div>
       </div>

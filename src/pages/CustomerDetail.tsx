@@ -10,7 +10,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useStore } from "@/store";
 import StatusBadge from "@/components/order/StatusBadge";
 import StatusProgress from "@/components/order/StatusProgress";
@@ -19,9 +19,52 @@ import { formatCurrency, formatDate, copyToClipboard } from "@/utils";
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const customer = useStore((s) => s.getCustomerById(id!));
-  const orders = useStore((s) => s.getOrdersByCustomerId(id!));
+  const customers = useStore((s) => s.customers);
+  const orders = useStore((s) => s.orders);
+  const payments = useStore((s) => s.payments);
   const [copied, setCopied] = useState(false);
+
+  const customer = useMemo(
+    () => customers.find((c) => c.id === id),
+    [customers, id]
+  );
+
+  const customerOrders = useMemo(
+    () => orders.filter((o) => o.customerId === id),
+    [orders, id]
+  );
+
+  const {
+    totalSpent,
+    totalPaid,
+    totalUnpaid,
+    completedOrders,
+    avgOrder,
+  } = useMemo(() => {
+    const spent = customerOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const paid = customerOrders.reduce((sum, o) => {
+      const orderPayments = payments.filter((p) => p.orderId === o.id);
+      return sum + orderPayments.reduce((s, p) => s + p.amount, 0);
+    }, 0);
+    const completed = customerOrders.filter((o) => o.status === "completed");
+    const avg =
+      customerOrders.length > 0
+        ? Math.round(spent / customerOrders.length)
+        : 0;
+    return {
+      totalSpent: spent,
+      totalPaid: paid,
+      totalUnpaid: spent - paid,
+      completedOrders: completed,
+      avgOrder: avg,
+    };
+  }, [customerOrders, payments]);
+
+  const getOrderTotalPaid = (orderId: string) => {
+    return payments
+      .filter((p) => p.orderId === orderId)
+      .reduce((s, p) => s + p.amount, 0);
+  };
 
   if (!customer) {
     return (
@@ -33,10 +76,6 @@ export default function CustomerDetail() {
       </div>
     );
   }
-
-  const totalSpent = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const completedOrders = orders.filter((o) => o.status === "completed");
-  const avgOrder = orders.length > 0 ? Math.round(totalSpent / orders.length) : 0;
 
   const handleCopyPhone = async () => {
     const ok = await copyToClipboard(customer.phone);
@@ -112,14 +151,14 @@ export default function CustomerDetail() {
           </div>
         </div>
 
-        <div className="relative grid grid-cols-4 gap-4 mt-8 pt-8 border-t border-walnut-100">
+        <div className="relative grid grid-cols-5 gap-4 mt-8 pt-8 border-t border-walnut-100">
           <div className="text-center p-4 rounded-xl bg-cream-50">
             <div className="flex items-center justify-center gap-1.5 mb-2">
               <ShoppingBag className="w-4 h-4 text-copper-500" />
               <span className="text-xs text-walnut-400">历史订单</span>
             </div>
             <div className="text-2xl font-serif font-bold text-walnut-800">
-              {orders.length}
+              {customerOrders.length}
             </div>
           </div>
           <div className="text-center p-4 rounded-xl bg-cream-50">
@@ -142,18 +181,27 @@ export default function CustomerDetail() {
           </div>
           <div className="text-center p-4 rounded-xl bg-cream-50">
             <div className="flex items-center justify-center gap-1.5 mb-2">
-              <Calendar className="w-4 h-4 text-copper-500" />
-              <span className="text-xs text-walnut-400">平均客单</span>
+              <svg className="w-4 h-4 text-status-completed" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/><path d="M16 21V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10"/></svg>
+              <span className="text-xs text-walnut-400">已收款</span>
             </div>
-            <div className="text-2xl font-serif font-bold text-walnut-800">
-              {formatCurrency(avgOrder)}
+            <div className="text-2xl font-serif font-bold text-status-completed">
+              {formatCurrency(totalPaid)}
+            </div>
+          </div>
+          <div className="text-center p-4 rounded-xl bg-cream-50">
+            <div className="flex items-center justify-center gap-1.5 mb-2">
+              <svg className="w-4 h-4 text-status-installing" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 10v4"/><path d="M8 10v4"/><path d="M16 10v4"/></svg>
+              <span className="text-xs text-walnut-400">待收款</span>
+            </div>
+            <div className="text-2xl font-serif font-bold text-status-installing">
+              {formatCurrency(totalUnpaid)}
             </div>
           </div>
         </div>
 
         <div className="relative mt-6 flex justify-end">
           <Link
-            to="/orders/new"
+            to={`/orders/new?customerId=${customer.id}`}
             className="btn-primary inline-flex items-center gap-2"
           >
             <Plus className="w-4 h-4" /> 为该客户新建订单
@@ -164,71 +212,87 @@ export default function CustomerDetail() {
       <div className="card p-6">
         <h3 className="section-title mb-5">历史订单记录</h3>
 
-        {orders.length === 0 ? (
+        {customerOrders.length === 0 ? (
           <div className="py-12 text-center">
             <div className="text-walnut-300 text-4xl mb-3">📦</div>
             <p className="text-walnut-500">该客户暂无订单记录</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {orders
+            {customerOrders
               .sort(
                 (a, b) =>
                   new Date(b.createdAt).getTime() -
                   new Date(a.createdAt).getTime()
               )
-              .map((order) => (
-                <Link
-                  key={order.id}
-                  to={`/orders/${order.id}`}
-                  className="block p-5 rounded-xl border border-walnut-100 hover:border-copper-300 hover:shadow-card transition-all group"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="font-mono text-sm text-walnut-500">
-                          {order.orderNo}
-                        </span>
-                        <StatusBadge status={order.status} />
+              .map((order) => {
+                const orderPaid = getOrderTotalPaid(order.id);
+                const orderUnpaid = order.totalAmount - orderPaid;
+                return (
+                  <Link
+                    key={order.id}
+                    to={`/orders/${order.id}`}
+                    className="block p-5 rounded-xl border border-walnut-100 hover:border-copper-300 hover:shadow-card transition-all group"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <span className="font-mono text-sm text-walnut-500">
+                            {order.orderNo}
+                          </span>
+                          <StatusBadge status={order.status} />
+                        </div>
+                        <div className="text-xs text-walnut-400">
+                          下单于 {formatDate(order.createdAt)}
+                        </div>
                       </div>
-                      <div className="text-xs text-walnut-400">
-                        下单于 {formatDate(order.createdAt)}
+                      <div className="text-right">
+                        <div className="text-2xl font-serif font-bold text-gradient-copper">
+                          {formatCurrency(order.totalAmount)}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-serif font-bold text-gradient-copper">
-                        {formatCurrency(order.totalAmount)}
-                      </div>
-                    </div>
-                  </div>
-                  <StatusProgress
-                    currentStatus={order.status}
-                    showLabels={false}
-                  />
-                  <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-                    <div className="flex items-center gap-2 text-walnut-500">
-                      <span className="text-walnut-400">型材</span>
-                      <span className="font-medium text-walnut-700">
-                        {order.totalProfileMeters.toFixed(2)} 米
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-walnut-500">
-                      <span className="text-walnut-400">玻璃</span>
-                      <span className="font-medium text-walnut-700">
-                        {order.totalGlassArea.toFixed(2)} ㎡
-                      </span>
-                    </div>
-                    {order.remark && (
-                      <div className="flex items-center gap-2 text-walnut-500 col-span-1 truncate">
-                        <span className="text-walnut-400">备注</span>
-                        <span className="font-medium text-walnut-600 truncate">
-                          {order.remark}
+                    <StatusProgress
+                      currentStatus={order.status}
+                      showLabels={false}
+                    />
+                    <div className="mt-4 grid grid-cols-5 gap-4 text-sm">
+                      <div className="flex items-center gap-2 text-walnut-500">
+                        <span className="text-walnut-400">型材</span>
+                        <span className="font-medium text-walnut-700">
+                          {order.totalProfileMeters.toFixed(2)} 米
                         </span>
                       </div>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                      <div className="flex items-center gap-2 text-walnut-500">
+                        <span className="text-walnut-400">玻璃</span>
+                        <span className="font-medium text-walnut-700">
+                          {order.totalGlassArea.toFixed(2)} ㎡
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-walnut-500">
+                        <span className="text-walnut-400">已收</span>
+                        <span className="font-medium text-status-completed">
+                          {formatCurrency(orderPaid)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-walnut-500">
+                        <span className="text-walnut-400">未收</span>
+                        <span className={`font-medium ${orderUnpaid > 0 ? "text-status-installing" : "text-status-completed"}`}>
+                          {formatCurrency(orderUnpaid)}
+                        </span>
+                      </div>
+                      {order.remark && (
+                        <div className="flex items-center gap-2 text-walnut-500 truncate">
+                          <span className="text-walnut-400">备注</span>
+                          <span className="font-medium text-walnut-600 truncate">
+                            {order.remark}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
           </div>
         )}
       </div>
